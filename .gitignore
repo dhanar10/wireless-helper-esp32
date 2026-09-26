@@ -1,0 +1,7 @@
+.pio
+.vscode/
+sdkconfig
+sdkconfig.esp32*
+dependencies.lock
+managed_components/
+build/

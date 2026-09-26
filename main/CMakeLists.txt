@@ -1,0 +1,24 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "wh_config.c"
+        "wh_wifi.c"
+        "wh_knock.c"
+        "wh_trigger.c"
+        "aa_proto.c"
+        "aa_bt.c"
+        "aa_bt_client.c"
+        "aa_handshake.c"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        nvs_flash
+        bt
+        freertos
+        esp_common
+        esp_event
+        esp_netif
+        esp_wifi
+        log
+        lwip
+)
