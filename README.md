@@ -21,26 +21,33 @@ pio run -t upload
 pio device monitor
 ```
 
-Menuconfig (WiFi credentials, BT name, ports):
+Menuconfig (WiFi credentials, BT name, wake hold):
 
 ```bash
 pio run -t menuconfig
 ```
 
-## Configure (Kconfig only)
+## Configure
+
+Kconfig / `sdkconfig.defaults` (override via menuconfig):
 
 | Setting | Default |
 |---------|---------|
 | BT name | `ESP32 Wireless Helper` |
 | WiFi SSID / key | `AndroidAuto` / `password123` |
+| Wake hold | `15000` ms |
+
+Fixed in firmware (`wh_config.h`):
+
+| Constant | Value |
+|----------|-------|
 | AA TCP port | `5288` |
 | Knock port | `5289` |
-| Wake hold | `15000` ms |
 
 BSSID is learned from the associated AP after STA connect (not a Kconfig setting).
 Knocks and `WifiInfoResponse` require a BSSID from STA — Gearhead matches SSID+BSSID.
 
-No NVS overlay or UART commands — change via menuconfig / `sdkconfig.defaults`, rebuild, flash. UART is logging only.
+No NVS overlay or UART commands — change Kconfig via menuconfig / `sdkconfig.defaults`, rebuild, flash. UART is logging only.
 
 ## Use
 

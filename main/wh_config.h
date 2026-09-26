@@ -6,6 +6,11 @@
 #define WH_IP_MAX     16
 #define WH_BSSID_MAX  18  /* "AA:BB:CC:DD:EE:FF" + NUL */
 
+/** Phone AA TCP port (WifiStartRequest). */
+#define AA_TCP_PORT   5288
+/** Headunit knock listen port (subnet scan finds this open). */
+#define AA_KNOCK_PORT 5289
+
 /** Set AA TCP host IP from knock. */
 void wh_config_set_ip(const char *ip);
 

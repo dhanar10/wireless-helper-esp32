@@ -68,7 +68,7 @@ static void send_start_request(uint32_t handle)
     uint8_t pkt[AA_PROTO_MAX_PACKET];
     size_t n = aa_proto_build_wifi_start_request(pkt, sizeof(pkt),
                                                  wh_config_ip(),
-                                                 (uint16_t)CONFIG_AA_TCP_PORT);
+                                                 (uint16_t)AA_TCP_PORT);
     if (n == 0) {
         ESP_LOGE(TAG, "Failed to build WifiStartRequest");
         return;
@@ -76,7 +76,7 @@ static void send_start_request(uint32_t handle)
     send_buf(handle, pkt, n);
     ESP_LOGI(TAG, "-> WifiStartRequest (msgId=%d) %s:%u",
              AA_MSG_WIFI_START_REQUEST, wh_config_ip(),
-             (unsigned)CONFIG_AA_TCP_PORT);
+             (unsigned)AA_TCP_PORT);
 }
 
 static void send_info_response(uint32_t handle)

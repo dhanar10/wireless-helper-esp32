@@ -7,7 +7,6 @@
 #include "freertos/task.h"
 #include "lwip/inet.h"
 #include "lwip/sockets.h"
-#include "sdkconfig.h"
 #include "wh_config.h"
 #include "wh_trigger.h"
 
@@ -28,7 +27,7 @@ static void close_fd(int *fd)
 static void knock_task(void *arg)
 {
     (void)arg;
-    const uint16_t port = (uint16_t)CONFIG_AA_KNOCK_PORT;
+    const uint16_t port = (uint16_t)AA_KNOCK_PORT;
 
     while (s_run) {
         s_listen_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);

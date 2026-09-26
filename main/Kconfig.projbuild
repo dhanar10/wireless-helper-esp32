@@ -19,20 +19,6 @@ menu "Wireless Helper (AA Trigger)"
         help
             WPA2 passphrase for STA join and WifiInfoResponse.
 
-    config AA_TCP_PORT
-        int "Android Auto TCP port"
-        range 1 65535
-        default 5288
-        help
-            Port the phone should connect to on the knock source IP.
-
-    config AA_KNOCK_PORT
-        int "TCP knock listen port"
-        range 1 65535
-        default 5289
-        help
-            Port the headunit knocks (subnet scan finds this open).
-
     config AA_WAKE_HOLD_MS
         int "Wake poke hold time (ms)"
         range 1000 60000
