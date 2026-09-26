@@ -5,7 +5,7 @@ PlatformIO + ESP-IDF firmware for **ESP32-WROOM-32E**. Replaces Wireless Helper�
 ## Flow
 
 1. Classic Bluetooth: discoverable, SSP auto-accept pairing
-2. WiFi STA joins the AP from Kconfig (SSID/key)
+2. WiFi STA joins the AP from Kconfig (SSID/key); **GPIO 2** LED on when connected (GOT_IP), off when disconnected
 3. On GOT_IP: listen TCP **5289**; headunit subnet-scans and knocks
 4. On knock: record source IP, one-shot HFP/HSP poke to all bonded phones
 5. Phone opens AA RFCOMM (SCN 8) → `WifiStartRequest(ip:5288)` → `WifiInfoResponse(SSID/key/BSSID)`

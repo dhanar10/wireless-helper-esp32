@@ -1,6 +1,7 @@
 #include "wh_wifi.h"
 
 #include <string.h>
+#include "driver/gpio.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
@@ -11,8 +12,29 @@
 
 static const char *TAG = "wh_wifi";
 
+/** Onboard LED on many ESP32 DevKit boards (active high). */
+#define WH_WIFI_LED_GPIO GPIO_NUM_2
+
 static int s_retry;
 static bool s_knock_started;
+
+static void wifi_led_set(bool on)
+{
+    gpio_set_level(WH_WIFI_LED_GPIO, on ? 1 : 0);
+}
+
+static void wifi_led_init(void)
+{
+    gpio_config_t io = {
+        .pin_bit_mask = 1ULL << WH_WIFI_LED_GPIO,
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    ESP_ERROR_CHECK(gpio_config(&io));
+    wifi_led_set(false);
+}
 
 static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
@@ -23,6 +45,7 @@ static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *da
     if (id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
     } else if (id == WIFI_EVENT_STA_DISCONNECTED) {
+        wifi_led_set(false);
         s_retry++;
         wh_config_clear_bssid();
         ESP_LOGW(TAG, "Disconnected — retry %d", s_retry);
@@ -40,6 +63,7 @@ static void on_ip_event(void *arg, esp_event_base_t base, int32_t id, void *data
 
     ip_event_got_ip_t *event = (ip_event_got_ip_t *)data;
     ESP_LOGI(TAG, "Got IP " IPSTR, IP2STR(&event->ip_info.ip));
+    wifi_led_set(true);
     s_retry = 0;
 
     wifi_ap_record_t ap;
@@ -66,6 +90,8 @@ esp_err_t wh_wifi_start(void)
         ESP_LOGE(TAG, "WiFi SSID/key not configured");
         return ESP_ERR_INVALID_STATE;
     }
+
+    wifi_led_init();
 
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
