@@ -5,6 +5,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_timer.h"
 #include "esp_wifi.h"
 #include "sdkconfig.h"
 #include "wh_config.h"
@@ -15,8 +16,11 @@ static const char *TAG = "wh_wifi";
 /** Onboard LED on many ESP32 DevKit boards (active high). */
 #define WH_WIFI_LED_GPIO GPIO_NUM_2
 
-static int s_retry;
+#define WH_WIFI_WATCHDOG_US (30LL * 1000 * 1000)
+
 static bool s_knock_started;
+static bool s_have_ip;
+static esp_timer_handle_t s_watchdog_timer;
 
 static void wifi_led_set(bool on)
 {
@@ -36,20 +40,62 @@ static void wifi_led_init(void)
     wifi_led_set(false);
 }
 
+static void wifi_disarm_watchdog(void)
+{
+    if (s_watchdog_timer) {
+        esp_timer_stop(s_watchdog_timer);
+    }
+}
+
+static void wifi_arm_watchdog(void)
+{
+    if (!s_watchdog_timer) {
+        return;
+    }
+    esp_timer_stop(s_watchdog_timer);
+    ESP_ERROR_CHECK(esp_timer_start_once(s_watchdog_timer, WH_WIFI_WATCHDOG_US));
+}
+
+static void wifi_watchdog_timer_cb(void *arg)
+{
+    (void)arg;
+
+    if (s_have_ip) {
+        return;
+    }
+
+    ESP_LOGW(TAG, "Watchdog: no IP for 30 s — forcing disconnect to recover");
+    esp_err_t err = esp_wifi_disconnect();
+    if (err == ESP_OK) {
+        /* STA_DISCONNECTED will reconnect + re-arm watchdog. */
+        return;
+    }
+    /* Not connected or disconnect failed — no disconnect event expected. */
+    ESP_LOGW(TAG, "esp_wifi_disconnect: %s — calling connect",
+             esp_err_to_name(err));
+    esp_wifi_connect();
+    wifi_arm_watchdog();
+}
+
 static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     (void)arg;
     (void)base;
-    (void)data;
 
     if (id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
+        wifi_arm_watchdog();
     } else if (id == WIFI_EVENT_STA_DISCONNECTED) {
+        wifi_event_sta_disconnected_t *disc = data;
         wifi_led_set(false);
-        s_retry++;
+        s_have_ip = false;
         wh_config_clear_bssid();
-        ESP_LOGW(TAG, "Disconnected — retry %d", s_retry);
+
+        uint8_t reason = disc ? disc->reason : 0;
+        ESP_LOGW(TAG, "Disconnected reason=%u — reconnecting", (unsigned)reason);
+
         esp_wifi_connect();
+        wifi_arm_watchdog();
     }
 }
 
@@ -64,7 +110,8 @@ static void on_ip_event(void *arg, esp_event_base_t base, int32_t id, void *data
     ip_event_got_ip_t *event = (ip_event_got_ip_t *)data;
     ESP_LOGI(TAG, "Got IP " IPSTR, IP2STR(&event->ip_info.ip));
     wifi_led_set(true);
-    s_retry = 0;
+    s_have_ip = true;
+    wifi_disarm_watchdog();
 
     wifi_ap_record_t ap;
     if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
@@ -99,6 +146,12 @@ esp_err_t wh_wifi_start(void)
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    const esp_timer_create_args_t watchdog_args = {
+        .callback = &wifi_watchdog_timer_cb,
+        .name = "wh_wifi_wd",
+    };
+    ESP_ERROR_CHECK(esp_timer_create(&watchdog_args, &s_watchdog_timer));
 
     ESP_ERROR_CHECK(esp_event_handler_instance_register(
         WIFI_EVENT, ESP_EVENT_ANY_ID, &on_wifi_event, NULL, NULL));
