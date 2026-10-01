@@ -12,15 +12,14 @@ idf_component_register(
     INCLUDE_DIRS
         "."
     REQUIRES
-        nvs_flash
-        bt
-        freertos
-        esp_common
-        esp_event
-        esp_netif
-        esp_wifi
-        esp_timer
-        driver
-        log
-        lwip
+            nvs_flash
+            bt
+            freertos
+            esp_common
+            esp_event
+            esp_netif
+            esp_wifi
+            driver
+            log
+            lwip
 )
