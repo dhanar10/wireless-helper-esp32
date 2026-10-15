@@ -8,6 +8,7 @@
 #include "freertos/task.h"
 #include "sdkconfig.h"
 #include "wh_config.h"
+#include <string.h>
 
 static const char *TAG = "wh_trig";
 
@@ -53,10 +54,39 @@ static void poke_task(void *arg)
     if (n == 0) {
         ESP_LOGW(TAG, "No bonded devices to poke");
     } else {
-        ESP_LOGI(TAG, "Poking %u bonded device(s) once", (unsigned)n);
+        // Try preferred phone first
+        esp_bd_addr_t preferred;
+        bool has_preferred = wh_config_get_preferred_phone(preferred);
+        bool preferred_tried = false;
+
+        if (has_preferred) {
+            // Check if preferred is still in bonded list
+            for (size_t i = 0; i < n; i++) {
+                if (memcmp(list[i], preferred, sizeof(esp_bd_addr_t)) == 0) {
+                    char bda_str[18];
+                    aa_bt_bda_str(preferred, bda_str, sizeof(bda_str));
+                    ESP_LOGI(TAG, "Trying preferred phone first: %s", bda_str);
+                    poke_one(preferred);
+                    preferred_tried = true;
+                    if (s_busy != WH_POKING) {
+                        goto exit;
+                    }
+                    break;
+                }
+            }
+            if (!preferred_tried) {
+                ESP_LOGI(TAG, "Preferred phone no longer bonded, trying all");
+            }
+        }
+
+        ESP_LOGI(TAG, "Poking %u bonded device(s)", (unsigned)n);
         for (size_t i = 0; i < n; i++) {
             if (s_busy != WH_POKING) {
                 break;
+            }
+            // Skip preferred if already tried
+            if (preferred_tried && memcmp(list[i], preferred, sizeof(esp_bd_addr_t)) == 0) {
+                continue;
             }
             poke_one(list[i]);
             if (s_busy != WH_POKING) {
@@ -132,6 +162,14 @@ void wh_trigger_on_handshake_open(void)
 void wh_trigger_on_handshake_complete(bool success)
 {
     ESP_LOGI(TAG, "Handshake complete success=%d — idle", (int)success);
+    if (success) {
+        esp_bd_addr_t bda;
+        if (aa_handshake_get_remote_bda(bda)) {
+            wh_config_set_preferred_phone(bda);
+        } else {
+            ESP_LOGW(TAG, "Handshake succeeded but no remote BDA available");
+        }
+    }
     aa_bt_client_cancel();
     s_busy = WH_IDLE;
 }

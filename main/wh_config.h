@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "esp_bt_defs.h"
 
 #define WH_IP_MAX     16
 #define WH_BSSID_MAX  18  /* "AA:BB:CC:DD:EE:FF" + NUL */
@@ -30,3 +31,10 @@ bool wh_config_bssid_usable(void);
 
 /** Current BSSID string, or "". */
 const char *wh_config_bssid(void);
+
+/** Store preferred phone BDA (6 bytes) on successful handshake.
+ *  Optimized: skips NVS write if BDA unchanged. */
+void wh_config_set_preferred_phone(const esp_bd_addr_t bda);
+
+/** Get preferred phone BDA; returns true if set. */
+bool wh_config_get_preferred_phone(esp_bd_addr_t out_bda);

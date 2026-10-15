@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include "aa_proto.h"
+#include "aa_bt.h"
 #include "esp_log.h"
 #include "esp_spp_api.h"
 #include "freertos/FreeRTOS.h"
@@ -18,6 +19,7 @@ static const char *TAG = "aa_hs";
 typedef struct {
     bool active;
     uint32_t handle;
+    esp_bd_addr_t rem_bda;
     uint8_t rx[RX_BUF_SIZE];
     size_t rx_len;
     bool start_sent;
@@ -157,16 +159,21 @@ static void process_messages(aa_hs_session_t *s)
     }
 }
 
-void aa_handshake_on_open(uint32_t handle)
+void aa_handshake_on_open(uint32_t handle, const esp_bd_addr_t rem_bda)
 {
     ensure_lock();
     lock();
     memset(&s_session, 0, sizeof(s_session));
     s_session.active = true;
     s_session.handle = handle;
+    if (rem_bda) {
+        memcpy(s_session.rem_bda, rem_bda, sizeof(esp_bd_addr_t));
+    }
     unlock();
 
-    ESP_LOGI(TAG, "AA RFCOMM open handle=%" PRIu32, handle);
+    char bda_str[18];
+    aa_bt_bda_str(rem_bda, bda_str, sizeof(bda_str));
+    ESP_LOGI(TAG, "AA RFCOMM open handle=%" PRIu32 " from [%s]", handle, bda_str);
     wh_trigger_on_handshake_open();
     send_start_request(handle);
 
@@ -230,6 +237,21 @@ bool aa_handshake_connection_open(void)
     bool open = s_session.active;
     unlock();
     return open;
+}
+
+bool aa_handshake_get_remote_bda(esp_bd_addr_t out_bda)
+{
+    if (!out_bda) {
+        return false;
+    }
+    ensure_lock();
+    lock();
+    bool active = s_session.active;
+    if (active) {
+        memcpy(out_bda, s_session.rem_bda, sizeof(esp_bd_addr_t));
+    }
+    unlock();
+    return active;
 }
 
 void aa_handshake_force_close(void)

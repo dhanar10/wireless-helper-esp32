@@ -225,7 +225,7 @@ static void on_server_open(uint32_t handle, uint8_t scn, const esp_bd_addr_t rem
     ESP_LOGI(TAG, "Connection on SCN %u from [%s]", (unsigned)scn,
              aa_bt_bda_str(rem_bda, bda_str, sizeof(bda_str)));
     if (scn == AA_SCN_AA) {
-        aa_handshake_on_open(handle);
+        aa_handshake_on_open(handle, rem_bda);
     }
 }
 

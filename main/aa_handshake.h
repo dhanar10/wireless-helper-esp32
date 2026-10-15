@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "esp_bt_defs.h"
 #include "esp_err.h"
 
 #define AA_SCN_HSP   1
@@ -9,7 +10,7 @@
 #define AA_SCN_HFP   15
 
 /** Called from SPP callback when AA (SCN 8) connection opens. */
-void aa_handshake_on_open(uint32_t handle);
+void aa_handshake_on_open(uint32_t handle, const esp_bd_addr_t rem_bda);
 
 /** Feed received bytes for an AA connection. */
 void aa_handshake_on_data(uint32_t handle, const uint8_t *data, uint16_t len);
@@ -22,6 +23,10 @@ bool aa_handshake_is_active(void);
 
 /** True if an AA RFCOMM handle is still open (even after handshake done). */
 bool aa_handshake_connection_open(void);
+
+/** Get the remote BDA of the active handshake session, if any.
+ *  Returns true if session is active and BDA is copied to out_bda. */
+bool aa_handshake_get_remote_bda(esp_bd_addr_t out_bda);
 
 /** Disconnect AA RFCOMM if a handle is open (for knock re-trigger). */
 void aa_handshake_force_close(void);
