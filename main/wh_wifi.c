@@ -17,15 +17,11 @@ static const char *TAG = "wh_wifi";
 /** Onboard LED on many ESP32 DevKit boards (active high). */
 #define WH_WIFI_LED_GPIO GPIO_NUM_2
 
-#define INITIAL_RETRY_DELAY_MS 2000
-#define RECONNECT_DELAY_MS 10000
-#define DHCP_TIMEOUT_MS 15000
+#define WIFI_RETRY_DELAY_MS 2000
 
 static bool s_knock_started;
 static bool s_have_ip;
-static bool s_had_ip_once;
 static esp_netif_t *s_sta_netif;
-static TaskHandle_t s_retry_task;
 
 static void wifi_led_set(bool on)
 {
@@ -45,45 +41,6 @@ static void wifi_led_init(void)
     wifi_led_set(false);
 }
 
-static void wifi_retry_task(void *pv)
-{
-    while (1) {
-        /* Wait for disconnect signal OR DHCP timeout */
-        BaseType_t notified = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(DHCP_TIMEOUT_MS));
-
-        if (notified) {
-            /* Explicit disconnect event received */
-            ESP_LOGW(TAG, "Disconnected — reconnecting");
-        } else if (!s_have_ip) {
-            /* Timeout: connected but no IP */
-            ESP_LOGW(TAG, "DHCP timeout (%d ms) — forcing reconnect", DHCP_TIMEOUT_MS);
-        } else {
-            /* Timeout but we have IP — just continue waiting */
-            continue;
-        }
-
-        wifi_led_set(false);
-        wh_config_clear_bssid();
-
-        /* Full stack reset for reconnect (after first IP) */
-        if (s_had_ip_once) {
-            ESP_LOGI(TAG, "Full stack reset (DHCP stop -> WiFi disconnect -> %d ms delay -> WiFi connect -> DHCP start)",
-                     RECONNECT_DELAY_MS);
-            esp_netif_dhcpc_stop(s_sta_netif);
-            esp_wifi_disconnect();
-            vTaskDelay(pdMS_TO_TICKS(500));
-            vTaskDelay(pdMS_TO_TICKS(RECONNECT_DELAY_MS));
-            esp_wifi_connect();
-            esp_netif_dhcpc_start(s_sta_netif);
-        } else {
-            /* First connect: simple retry */
-            ESP_LOGI(TAG, "Initial retry in %d ms", INITIAL_RETRY_DELAY_MS);
-            vTaskDelay(pdMS_TO_TICKS(INITIAL_RETRY_DELAY_MS));
-            esp_wifi_connect();
-        }
-    }
-}
-
 static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     (void)arg;
@@ -98,11 +55,10 @@ static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *da
         wh_config_clear_bssid();
 
         uint8_t reason = disc ? disc->reason : 0;
-        ESP_LOGW(TAG, "Disconnected reason=%u — signaling retry task", (unsigned)reason);
+        ESP_LOGW(TAG, "Disconnected reason=%u — retrying in %d ms", (unsigned)reason, WIFI_RETRY_DELAY_MS);
 
-        if (s_retry_task) {
-            xTaskNotifyGive(s_retry_task);
-        }
+        vTaskDelay(pdMS_TO_TICKS(WIFI_RETRY_DELAY_MS));
+        esp_wifi_connect();
     }
 }
 
@@ -118,7 +74,6 @@ static void on_ip_event(void *arg, esp_event_base_t base, int32_t id, void *data
     ESP_LOGI(TAG, "Got IP " IPSTR, IP2STR(&event->ip_info.ip));
     wifi_led_set(true);
     s_have_ip = true;
-    s_had_ip_once = true;
 
     wifi_ap_record_t ap;
     if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
@@ -152,12 +107,9 @@ esp_err_t wh_wifi_start(void)
     s_sta_netif = esp_netif_create_default_wifi_sta();
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+        ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-    /* Create retry task */
-    xTaskCreate(wifi_retry_task, "wifi_retry", 2048, NULL, 3, &s_retry_task);
-
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(
+        ESP_ERROR_CHECK(esp_event_handler_instance_register(
         WIFI_EVENT, ESP_EVENT_ANY_ID, &on_wifi_event, NULL, NULL));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(
         IP_EVENT, IP_EVENT_STA_GOT_IP, &on_ip_event, NULL, NULL));
