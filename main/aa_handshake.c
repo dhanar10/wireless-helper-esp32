@@ -32,21 +32,21 @@ static SemaphoreHandle_t s_lock;
 static void lock(void)
 {
     if (s_lock) {
-        xSemaphoreTake(s_lock, portMAX_DELAY);
+        xSemaphoreTakeRecursive(s_lock, portMAX_DELAY);
     }
 }
 
 static void unlock(void)
 {
     if (s_lock) {
-        xSemaphoreGive(s_lock);
+        xSemaphoreGiveRecursive(s_lock);
     }
 }
 
 static void ensure_lock(void)
 {
     if (!s_lock) {
-        s_lock = xSemaphoreCreateMutex();
+        s_lock = xSemaphoreCreateRecursiveMutex();
     }
 }
 
@@ -174,7 +174,7 @@ void aa_handshake_on_open(uint32_t handle, const esp_bd_addr_t rem_bda)
     char bda_str[18];
     aa_bt_bda_str(rem_bda, bda_str, sizeof(bda_str));
     ESP_LOGI(TAG, "AA RFCOMM open handle=%" PRIu32 " from [%s]", handle, bda_str);
-    wh_trigger_on_handshake_open();
+    wh_trigger_on_handshake_open(rem_bda);
     send_start_request(handle);
 
     lock();

@@ -22,6 +22,8 @@ typedef enum {
 
 static volatile wh_busy_t s_busy;
 static TaskHandle_t s_poke_task;
+static esp_bd_addr_t s_handshake_bda;
+static bool s_has_handshake_bda;
 
 static bool is_busy(void)
 {
@@ -152,25 +154,28 @@ void wh_trigger_on_knock(const char *source_ip)
     }
 }
 
-void wh_trigger_on_handshake_open(void)
+void wh_trigger_on_handshake_open(const esp_bd_addr_t bda)
 {
     ESP_LOGI(TAG, "Handshake open — cancelling poke");
     s_busy = WH_HANDSHAKE;
+    if (bda) {
+        memcpy(s_handshake_bda, bda, sizeof(esp_bd_addr_t));
+        s_has_handshake_bda = true;
+    } else {
+        s_has_handshake_bda = false;
+    }
     aa_bt_client_cancel();
 }
 
 void wh_trigger_on_handshake_complete(bool success)
 {
     ESP_LOGI(TAG, "Handshake complete success=%d — idle", (int)success);
-    if (success) {
-        esp_bd_addr_t bda;
-        if (aa_handshake_get_remote_bda(bda)) {
-            wh_config_set_preferred_phone(bda);
-        } else {
-            ESP_LOGW(TAG, "Handshake succeeded but no remote BDA available");
-        }
+    if (success && s_has_handshake_bda) {
+        wh_config_set_preferred_phone(s_handshake_bda);
+        s_has_handshake_bda = false;
     }
     aa_bt_client_cancel();
+    aa_handshake_force_close();
     s_busy = WH_IDLE;
 }
 
@@ -178,5 +183,7 @@ void wh_trigger_on_handshake_abort(void)
 {
     ESP_LOGI(TAG, "Handshake abort — idle");
     aa_bt_client_cancel();
+    aa_handshake_force_close();
+    s_has_handshake_bda = false;
     s_busy = WH_IDLE;
 }
